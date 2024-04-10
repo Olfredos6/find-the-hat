@@ -1,0 +1,13 @@
+{
+  "name": "find-the-hat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "keypress": "^0.2.1",
+    "mysql2": "^3.9.4",
+    "prompt-sync": "^4.1.7"
+  }
+}
