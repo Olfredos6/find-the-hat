@@ -15,7 +15,7 @@ const QUERY_CREATE_TABLE_SCORE = `CREATE TABLE IF NOT EXISTS scores (
   field_size INT,
   hole_count INT,
   steps INT,
-  score DECIMAL(10, 2) GENERATED ALWAYS AS (
+  score INT GENERATED ALWAYS AS (
       CASE
           WHEN steps > 0 THEN ROUND((field_size - hole_count) / steps)
           ELSE 0
@@ -29,9 +29,23 @@ module.exports = new (function () {
 
   return {
     connection: mysql.createConnection(DB_CONFIG),
-    createScoresTable: function(){
+    createScoresTableIfNotExists: function(){
       return this.connection.promise().query(QUERY_CREATE_TABLE_SCORE)
       .catch(e => {console.log(e)})
+    },
+    insertScore: function(field_size, hole_count, steps, is_win){
+      return this.connection.promise()
+      .query(
+        `INSERT INTO scores (field_size, hole_count, steps, is_win) VALUES (?, ?, ?, ?)`, 
+        [field_size, hole_count, steps, is_win]
+      )
+      .then((results) => {
+        // console.log("Score saved!")
+        return results;
+      })
+      .catch(e => {
+        console.log(`Error: ${e}`)
+      })
     }
   }
 })();

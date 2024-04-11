@@ -1,23 +1,44 @@
 const keypress = require('keypress');
+const db = require('./db.js');
 keypress(process.stdin);
-let db = require("./db.js");
 
 
-db.connection.connect((err) => {
-  if (err) {
-    console.error('Erreur de connexion à la base de données:', err);
-    return;
-  }
-});
 
-// Ensure the table exists. If not, create it
-db.createScoresTable();
 
 
 const hat = '^';
 const hole = 'O';
 const fieldCharacter = '░';
 const pathCharacter = '*';
+
+class Game {
+  constructor(field, dbUtil) {
+    this.field = field
+    this.dbUtil = dbUtil
+
+    dbUtil.connection.connect((err) => {
+      if (err) {
+        console.error('Erreur de connexion à la base de données:', err);
+      }
+    });
+
+    // Ensure the table exists. If not, create it
+    dbUtil.createScoresTableIfNotExists();
+  }
+
+  uploadScore(steps, is_win) {
+    this.dbUtil.insertScore(this.field.fieldSize, this.field.holeCount, steps, is_win)
+    .then(insertResults => { 
+      if(insertResults[0].affectedRows == 0) { console.log("Score could not be saved!")}
+    })
+    .then( _ => this.dbUtil.connection.end())
+  }
+
+  end(){
+    this.dbUtil.connection.end();
+    process.exit()
+  }
+}
 
 class Field {
   constructor(height, width, maxHoleProbability) {
@@ -30,7 +51,7 @@ class Field {
     let [_field, _holeCount] = this._generateField(height, width, maxHoleProbability);
     this.field = _field
     this.holeCount = _holeCount
-    
+
     // Set the "home" position before the game starts
     this.field[0][0] = pathCharacter;
   }
@@ -69,7 +90,7 @@ class Field {
         field[y][x] = prob > percentage ? fieldCharacter : hole;
 
         // Incremen Hole Count
-        if(field[y][x] == hole) holeCount++;
+        if (field[y][x] == hole) holeCount++;
       }
     }
     // Set the "hat" location
@@ -83,64 +104,59 @@ class Field {
       hatLocation.y = Math.floor(Math.random() * height);
     }
     field[hatLocation.y][hatLocation.x] = hat;
-    return [ field, holeCount ];
+    return [field, holeCount];
   }
 }
 
-const gameField = new Field(10, 10, 0.2)
+
+const game = new Game(new Field(5, 5, 0.2), db)
 let stepCounter = 0;
 
 process.stdout.write("\u001b[2J\u001b[0;0H");
-gameField.print()
+game.field.print()
 
 process.stdin.on('keypress', function (ch, key) {
+  let shouldEndGame = false;
   if (key && key.ctrl && key.name == 'c') {
     process.stdin.pause();
-    processGameEnd(gameField.fieldSize, gameField.holeCount, stepCounter, false)
+    game.uploadScore(stepCounter, false)
   } else {
     stepCounter++;
     process.stdout.write("\u001b[2J\u001b[0;0H");
-    if (key.name == 'up') gameField.locationY -= 1; 
-    if (key.name == 'down') gameField.locationY += 1;
-    if (key.name == 'left') gameField.locationX -= 1;
-    if (key.name == 'right') gameField.locationX += 1;;
-    if (!gameField.isInBounds()) {
-      console.log('Out of bounds instruction!');
+    if (key.name == 'up') game.field.locationY -= 1;
+    if (key.name == 'down') game.field.locationY += 1;
+    if (key.name == 'left') game.field.locationX -= 1;
+    if (key.name == 'right') game.field.locationX += 1;;
+    if (!game.field.isInBounds()) {
+      console.log('Sorry, you went out of bonds!');
       process.stdin.pause();
-      processGameEnd(gameField.fieldSize, gameField.holeCount, stepCounter, false)
-
-    } else if (gameField.isHole()) {
+      game.uploadScore(stepCounter, false)
+      shouldEndGame = true;
+    } else if (game.field.isHole()) {
       console.log('Sorry, you fell down a hole!');
       process.stdin.pause();
-      processGameEnd(gameField.fieldSize, gameField.holeCount, stepCounter, false)
-
-    } else if (gameField.isHat()) {
+      game.uploadScore(stepCounter, false)
+      shouldEndGame = true;
+    } else if (game.field.isHat()) {
       console.log('Congrats, you found your hat!');
       process.stdin.pause();
-      processGameEnd(gameField.fieldSize, gameField.holeCount, stepCounter, true)
+      game.uploadScore(stepCounter, true)
+      shouldEndGame = true;
     }
-    // Update the current location on the map
-    gameField.field[gameField.locationY][gameField.locationX] = pathCharacter;
-    gameField.print()
+
+    
+
+    if(!shouldEndGame){
+      // Update the current location on the map
+      game.field.field[game.field.locationY][game.field.locationX] = pathCharacter;
+    }
+    game.field.print()
   }
 });
 
 
-function uploadScore(field_size, hole_count, steps, is_win){
-  return db.connection.promise()
-  .query(
-    `INSERT INTO scores (field_size, hole_count, steps, is_win) VALUES (?, ?, ?, ?)`, 
-    [field_size, hole_count, steps, is_win]
-  )
-  .then((results) => {
-    // console.log("Score saved!")
-  })
-  .catch(e => {
-    console.log(`Error: ${e}`)
-  })
-}
 
-function processGameEnd(field_size, hole_count, steps, is_win){
+function processGameEnd(field_size, hole_count, steps, is_win) {
   uploadScore(field_size, hole_count, steps, is_win)
   db.connection.end();
 }

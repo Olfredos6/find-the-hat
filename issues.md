@@ -1,2 +1,1 @@
 - Hat may appear in boxed-in location
-- Count for holes in field is innacurate
