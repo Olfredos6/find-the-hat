@@ -14,7 +14,7 @@ const QUERY_CREATE_TABLE_PROFILES = `CREATE TABLE IF NOT EXISTS profiles (
   name VARCHAR(100) NOT NULL
 )`;
 
-const QUERY_CREATE_TABLE_SCORE = `CREATE TABLE scores (
+const QUERY_CREATE_TABLE_SCORE = `CREATE TABLE IF NOT EXISTS scores (
   id INT AUTO_INCREMENT PRIMARY KEY,
   datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
   field_size INT,
@@ -54,8 +54,9 @@ module.exports = new (function () {
       })
       .catch(e => { logErrorMessage(e) })
     },
-    selectProfiles: function(){
-      this.connection.promise().query("SELECT * FROM profiles")
+    getAllProfiles: function(){
+      return this.connection.promise().query("SELECT id, name FROM profiles")
+      .then( results => results[0])
       .catch(e => { logErrorMessage(e) })
     },
     insertScore: function(field_size, hole_count, steps, is_win){
@@ -67,6 +68,12 @@ module.exports = new (function () {
       .then((results) => {
         return results;
       })
+      .catch(e => { logErrorMessage(e) })
+    },
+    insertProfile: function(name){
+      return this.connection.promise()
+      .query(`INSERT INTO profiles (name) VALUES (?)`, [name])
+      .then(result => result)
       .catch(e => { logErrorMessage(e) })
     }
   }
