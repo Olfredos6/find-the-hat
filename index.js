@@ -16,7 +16,7 @@ class Game {
   constructor(field, dbUtil) {
     this.field = field;
     this.dbUtil = dbUtil;
-    this.profile = null;
+    this.profile = { id: null, name: null };
 
     dbUtil.connection.connect(async (err) => {
       if (err) {
@@ -25,25 +25,26 @@ class Game {
       }
       this.dbUtil.DBSetup();
 
-      if (!this.profile) {
+      if (Object.values(this.profile).some(v => v == null)) {
         this.profile = await this.dbUtil.getAllProfiles()
-          .then(async function(profiles) {
+          .then(async function (profiles) {
             if (profiles.length == 0) {
-                let new_profile_name = await rl.question("Please enter a profile name> ")
-                .then( name => name)
+              console.warn('\x1b[33m%s\x1b[0m', "No profile found!")
+              let new_profile_name = await rl.question("Please enter a name for your profile > ")
+                .then(name => name)
                 .catch(e => console.log(e))
-                let result = await db.insertProfile(new_profile_name)
-                console.log("~~~>>>>>", result)
-                return new_profile_name;
-                // , async function(name){
-                //   result = await db.insertProfile(name)
-                //   console.log("-------> result", result)
 
-                //   rl.close()
-          
-              
+              let result = await db.insertProfile(new_profile_name);
+              return { "id": result[0].insertId, "name": new_profile_name }
+
             } else {
-              console.log("Available profiles ->", profiles)
+              profiles.forEach(function (profile) {
+                console.log(`\t${profile.id} ${profile.name}`)
+              })
+
+              let profile_choice = await rl.question("Enter the number corresponding to your profile > ")
+                .then(profile_id => profile_id)
+              return profiles.find(p => p.id == profile_choice)
             }
           })
           .catch(e => {
@@ -55,7 +56,7 @@ class Game {
   }
 
   uploadScore(steps, is_win) {
-    this.dbUtil.insertScore(this.field.fieldSize, this.field.holeCount, steps, is_win)
+    this.dbUtil.insertScore(this.profile.id, this.field.fieldSize, this.field.holeCount, steps, is_win)
       .then(insertResults => {
         if (insertResults[0].affectedRows == 0) { console.log("Score could not be saved!") }
       })
@@ -65,6 +66,12 @@ class Game {
   end() {
     this.dbUtil.connection.end();
     process.exit()
+  }
+
+  printField(){
+    
+    console.log('\x1b[42m%s\x1b[0m', `Profil: ${this.profile.name}`);
+    this.field.print()
   }
 }
 
@@ -101,11 +108,15 @@ class Field {
     return this.field[this.locationY][this.locationX] === hole;
   }
 
-  print() {
+  getFieldPrint() {
     const displayString = this.field.map(row => {
       return row.join('');
     }).join('\n');
-    console.log(displayString);
+    return displayString;
+  }
+
+  print(){
+    console.log(this.getFieldPrint())
   }
 
   _generateField(height, width, percentage = 0.1) {
@@ -140,50 +151,56 @@ class Field {
 const game = new Game(new Field(5, 5, 0.2), db)
 let stepCounter = 0;
 
-/*
-process.stdout.write("\u001b[2J\u001b[0;0H");
-game.field.print()
+// wait for user to complete setting their profile
+let profileSetUpTimer = setInterval(function () {
 
-process.stdin.on('keypress', function (ch, key) {
-  let shouldEndGame = false;
-  if (key && key.ctrl && key.name == 'c') {
-    process.stdin.pause();
-    game.uploadScore(stepCounter, false)
-  } else {
-    stepCounter++;
+  if (game.profile.id != null) {
+    clearInterval(profileSetUpTimer)
+
     process.stdout.write("\u001b[2J\u001b[0;0H");
-    if (key.name == 'up') game.field.locationY -= 1;
-    if (key.name == 'down') game.field.locationY += 1;
-    if (key.name == 'left') game.field.locationX -= 1;
-    if (key.name == 'right') game.field.locationX += 1;;
-    if (!game.field.isInBounds()) {
-      console.log('Sorry, you went out of bonds!');
-      process.stdin.pause();
-      game.uploadScore(stepCounter, false)
-      shouldEndGame = true;
-    } else if (game.field.isHole()) {
-      console.log('Sorry, you fell down a hole!');
-      process.stdin.pause();
-      game.uploadScore(stepCounter, false)
-      shouldEndGame = true;
-    } else if (game.field.isHat()) {
-      console.log('Congrats, you found your hat!');
-      process.stdin.pause();
-      game.uploadScore(stepCounter, true)
-      shouldEndGame = true;
-    }
+    game.printField()
 
-    if(!shouldEndGame){
-      // Update the current location on the map
-      game.field.field[game.field.locationY][game.field.locationX] = pathCharacter;
-    }
-    game.field.print()
+    process.stdin.on('keypress', function (ch, key) {
+      let shouldEndGame = false;
+      if (key && key.ctrl && key.name == 'c') {
+        process.stdin.pause();
+        game.uploadScore(stepCounter, false)
+      } else {
+        stepCounter++;
+        process.stdout.write("\u001b[2J\u001b[0;0H");
+        if (key.name == 'up') game.field.locationY -= 1;
+        if (key.name == 'down') game.field.locationY += 1;
+        if (key.name == 'left') game.field.locationX -= 1;
+        if (key.name == 'right') game.field.locationX += 1;;
+        if (!game.field.isInBounds()) {
+          console.log('Sorry, you went out of bonds!');
+          process.stdin.pause();
+          game.uploadScore(stepCounter, false)
+          shouldEndGame = true;
+        } else if (game.field.isHole()) {
+          console.log('Sorry, you fell down a hole!');
+          process.stdin.pause();
+          game.uploadScore(stepCounter, false)
+          shouldEndGame = true;
+        } else if (game.field.isHat()) {
+          console.log('Congrats, you found your hat!');
+          process.stdin.pause();
+          game.uploadScore(stepCounter, true)
+          shouldEndGame = true;
+        }
+
+        if (!shouldEndGame) {
+          // Update the current location on the map
+          game.field.field[game.field.locationY][game.field.locationX] = pathCharacter;
+        }
+        game.printField()
+      }
+    });
+
   }
-});
 
 
-// Resume `process.stdin` to begin listening for keystrokes
-process.stdin.setRawMode(true);
-process.stdin.resume();
-
-*/
+  // Resume `process.stdin` to begin listening for keystrokes
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+}, 500)

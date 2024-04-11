@@ -59,11 +59,11 @@ module.exports = new (function () {
       .then( results => results[0])
       .catch(e => { logErrorMessage(e) })
     },
-    insertScore: function(field_size, hole_count, steps, is_win){
+    insertScore: function(profile_id, field_size, hole_count, steps, is_win){
       return this.connection.promise()
       .query(
-        `INSERT INTO scores (field_size, hole_count, steps, is_win) VALUES (?, ?, ?, ?)`, 
-        [field_size, hole_count, steps, is_win]
+        `INSERT INTO scores (profile, field_size, hole_count, steps, is_win) VALUES (?, ?, ?, ?, ?)`, 
+        [profile_id, field_size, hole_count, steps, is_win]
       )
       .then((results) => {
         return results;
