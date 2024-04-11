@@ -10,6 +10,9 @@ db.connection.connect((err) => {
   }
 });
 
+// Ensure the table exists. If not, create it
+db.createScoresTable();
+
 
 const hat = '^';
 const hole = 'O';
