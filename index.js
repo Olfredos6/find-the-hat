@@ -1,9 +1,9 @@
 const keypress = require('keypress');
 keypress(process.stdin);
-let db_connection = require("./db.js");
+let db = require("./db.js");
 
 
-db_connection.connect((err) => {
+db.connection.connect((err) => {
   if (err) {
     console.error('Erreur de connexion à la base de données:', err);
     return;
@@ -124,7 +124,7 @@ process.stdin.on('keypress', function (ch, key) {
 
 
 function uploadScore(field_size, hole_count, steps, is_win){
-  return db_connection.promise()
+  return db.connection.promise()
   .query(
     `INSERT INTO scores (field_size, hole_count, steps, is_win) VALUES (?, ?, ?, ?)`, 
     [field_size, hole_count, steps, is_win]
@@ -139,7 +139,7 @@ function uploadScore(field_size, hole_count, steps, is_win){
 
 function processGameEnd(field_size, hole_count, steps, is_win){
   uploadScore(field_size, hole_count, steps, is_win)
-  db_connection.end();
+  db.connection.end();
 }
 
 
