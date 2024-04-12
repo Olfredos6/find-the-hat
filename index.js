@@ -70,7 +70,7 @@ class Game {
 
   printField(){
     
-    console.log('\x1b[42m%s\x1b[0m', `Profil: ${this.profile.name}`);
+    console.log('\x1b[42m%s\x1b[0m', `Profil: ${this.profile.name} | steps: ${this.field.starMovesCounter} `);
     this.field.print()
   }
 }
@@ -79,6 +79,8 @@ class Field {
   constructor(height, width, maxHoleProbability) {
     this.locationX = 0;
     this.locationY = 0;
+    this.starPreviousLocation = [this.locationX, this.locationY];
+    this.starMovesCounter = 0;
     this.holeCount = 0;
     this.fieldSize = height * width
 
@@ -115,8 +117,13 @@ class Field {
     return displayString;
   }
 
+  starHasMoved(){
+    return this.starPreviousLocation != [this.locationX, this.locationY]
+  }
+
   print(){
     console.log(this.getFieldPrint())
+    if(this.starHasMoved()) this.starMovesCounter++;
   }
 
   _generateField(height, width, percentage = 0.1) {
@@ -148,7 +155,7 @@ class Field {
 }
 
 
-const game = new Game(new Field(5, 5, 0.2), db)
+const game = new Game(new Field(5, 33, 0.2), db)
 let stepCounter = 0;
 
 // wait for user to complete setting their profile
