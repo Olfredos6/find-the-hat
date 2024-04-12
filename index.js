@@ -17,6 +17,7 @@ class Game {
     this.field = field;
     this.dbUtil = dbUtil;
     this.profile = { id: null, name: null };
+    this.isDone = false
 
     dbUtil.connection.connect(async (err) => {
       if (err) {
@@ -60,7 +61,7 @@ class Game {
       .then(insertResults => {
         if (insertResults[0].affectedRows == 0) { console.log("Score could not be saved!") }
       })
-      .then(_ => this.dbUtil.connection.end())
+    /*.then(_ => this.dbUtil.connection.end())*/
   }
 
   play(){
@@ -68,7 +69,7 @@ class Game {
     process.stdout.write("\u001b[2J\u001b[0;0H");
     game.printField()
 
-    process.stdin.on('keypress', function (ch, key) {
+    function handleinput(ch, key) {
       let shouldEndGame = false;
       if (key && key.ctrl && key.name == 'c') {
         process.stdin.pause();
@@ -77,6 +78,7 @@ class Game {
         stepCounter++;
         process.stdout.write("\u001b[2J\u001b[0;0H");
         if (ch == 'r') game.field.rebuild();
+        if (key.name == 'return' && game.isDone) { game.showIntermediaryMenu(); return;}
         if (key.name == 'up') game.field.locationY -= 1;
         if (key.name == 'down') game.field.locationY += 1;
         if (key.name == 'left') game.field.locationX -= 1;
@@ -93,8 +95,10 @@ class Game {
           shouldEndGame = true;
         } else if (game.field.isHat()) {
           console.log('Congrats, you found your hat!');
-          process.stdin.pause();
+          console.log("press ENTER to return to menu")
+          // process.stdin.pause();
           game.uploadScore(stepCounter, true)
+          game.isDone = true;
         }
 
         if (!shouldEndGame) {
@@ -102,9 +106,10 @@ class Game {
           game.field.field[game.field.locationY][game.field.locationX] = pathCharacter;
         }
         game.printField()
-        if (game.field.isHat()) console.log("press ENTER to return to menu")
       }
-    });
+    }
+
+    process.stdin.on('keypress', handleinput);
   }
 
   end() {
@@ -116,6 +121,61 @@ class Game {
     
     console.log('\x1b[42m%s\x1b[0m', `Profil: ${this.profile.name} | steps: ${this.field.starMovesCounter} `);
     this.field.print()
+  }
+
+  showIntermediaryMenu(){
+    clearInterval(profileSetUpTimer)
+    process.stdout.write("\u001b[2J\u001b[0;0H");
+    clearScreen()
+
+    function displayLeaderBoardScreen(){
+      clearScreen()
+      console.log(`\t\tLeadearboad`)
+          db.getLeaderBoard()
+          .then(([res, _]) => {
+            res.forEach(profile => {
+              console.log(`\t${profile.score}\t${profile.name}`)
+            })
+          })
+          .catch(e => {console.log(e)})
+    }
+    // Display second menu
+    const secondMenuItems = [
+      ["Play game", game.play],
+      ["Check Leaderboard", displayLeaderBoardScreen]
+    ]
+
+    let menuSelectIndex = 0;
+
+    function printMenu(){
+      console.log("\tWhat do you want to do?")
+      secondMenuItems.forEach((item, index) =>{
+        if(index == menuSelectIndex) console.error('\x1b[32m%s\x1b[0m', `\t${item[0]}`);
+        else console.log(`\t${item[0]}`)
+      })
+    }
+
+    printMenu()
+
+    function handleInput(ch, key) {
+      if (key && key.ctrl && key.name == 'c') {
+        process.stdin.pause();
+        game.uploadScore(stepCounter, false)
+      } else {
+
+        clearScreen()
+        if (key.name == "up" && menuSelectIndex > 0) menuSelectIndex--
+        if (key.name == "down" && menuSelectIndex < secondMenuItems.length - 1) menuSelectIndex++
+        if (key.name == "return") {
+          process.stdin.removeListener('keypress', handleInput)
+          secondMenuItems[menuSelectIndex][1]()
+          return
+        }
+        printMenu()
+      }
+    }
+
+    process.stdin.on('keypress', handleInput)
   }
 }
 
@@ -221,53 +281,7 @@ let stepCounter = 0;
 let profileSetUpTimer = setInterval(function () {
 
   if (game.profile.id != null) {
-    clearInterval(profileSetUpTimer)
-    clearScreen()
-
-    function displayLeaderBoardScreen(){
-      console.log(`\t\tLeadearboad`)
-          db.getLeaderBoard()
-          .then(([res, _]) => {
-            res.forEach(profile => {
-              console.log(`\t${profile.score}\t${profile.name}`)
-            })
-          })
-          .catch(e => {console.log(e)})
-    }
-    // Display second menu
-    const secondMenuItems = [
-      ["Play game", game.play],
-      ["Check Leaderboard", displayLeaderBoardScreen]
-    ]
-
-    let menuSelectIndex = 0;
-
-    function printMenu(){
-      console.log("\tWhat do you want to do?")
-      secondMenuItems.forEach((item, index) =>{
-        if(index == menuSelectIndex) console.log(`\x1b[42m\t${item[0]}\x1b[0m`);
-        else console.log(`\t${item[0]}`)
-      })
-    }
-
-    printMenu()
-
-    process.stdin.on('keypress', function (ch, key) {
-      if (key && key.ctrl && key.name == 'c') {
-        process.stdin.pause();
-        game.uploadScore(stepCounter, false)
-      } else {
-
-        clearScreen()
-        if (key.name == "up" && menuSelectIndex > 0) menuSelectIndex--
-        if (key.name == "down" && menuSelectIndex < secondMenuItems.length - 1) menuSelectIndex++
-        if (key.name == "return") {
-          secondMenuItems[menuSelectIndex][1]()
-          return
-        }
-        printMenu()
-      }
-    })
+    game.showIntermediaryMenu()
   }
 
 
