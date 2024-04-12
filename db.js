@@ -31,6 +31,14 @@ const QUERY_CREATE_TABLE_SCORE = `CREATE TABLE IF NOT EXISTS scores (
   FOREIGN KEY(profile) REFERENCES profiles(id)
 )`;
 
+const QUERY_LEADERBOARD = `SELECT 
+SUM(s.score) AS score, p.name 
+FROM profiles AS p
+JOIN scores AS s ON s.profile = p.id
+WHERE is_win = true
+GROUP BY p.name
+ORDER BY score DESC`;
+
 function logErrorMessage(err){
   console.log(err.errno?.toString, err.message)
 }
@@ -75,6 +83,9 @@ module.exports = new (function () {
       .query(`INSERT INTO profiles (name) VALUES (?)`, [name])
       .then(result => result)
       .catch(e => { logErrorMessage(e) })
+    },
+    getLeaderBoard(){
+      return this.connection.promise().query(QUERY_LEADERBOARD)
     }
   }
 })();

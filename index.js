@@ -63,6 +63,50 @@ class Game {
       .then(_ => this.dbUtil.connection.end())
   }
 
+  play(){
+    
+    process.stdout.write("\u001b[2J\u001b[0;0H");
+    game.printField()
+
+    process.stdin.on('keypress', function (ch, key) {
+      let shouldEndGame = false;
+      if (key && key.ctrl && key.name == 'c') {
+        process.stdin.pause();
+        game.uploadScore(stepCounter, false)
+      } else {
+        stepCounter++;
+        process.stdout.write("\u001b[2J\u001b[0;0H");
+        if (ch == 'r') game.field.rebuild();
+        if (key.name == 'up') game.field.locationY -= 1;
+        if (key.name == 'down') game.field.locationY += 1;
+        if (key.name == 'left') game.field.locationX -= 1;
+        if (key.name == 'right') game.field.locationX += 1;;
+        if (!game.field.isInBounds()) {
+          console.log('Sorry, you went out of bonds!');
+          process.stdin.pause();
+          game.uploadScore(stepCounter, false)
+          shouldEndGame = true;
+        } else if (game.field.isHole()) {
+          console.log('Sorry, you fell down a hole!');
+          process.stdin.pause();
+          game.uploadScore(stepCounter, false)
+          shouldEndGame = true;
+        } else if (game.field.isHat()) {
+          console.log('Congrats, you found your hat!');
+          process.stdin.pause();
+          game.uploadScore(stepCounter, true)
+        }
+
+        if (!shouldEndGame) {
+          // Update the current location on the map
+          game.field.field[game.field.locationY][game.field.locationX] = pathCharacter;
+        }
+        game.printField()
+        if (game.field.isHat()) console.log("press ENTER to return to menu")
+      }
+    });
+  }
+
   end() {
     this.dbUtil.connection.end();
     process.exit()
@@ -77,6 +121,9 @@ class Game {
 
 class Field {
   constructor(height, width, maxHoleProbability) {
+    this._height = height
+    this._width = width
+    this._maxHoleProbability = maxHoleProbability
     this.locationX = 0;
     this.locationY = 0;
     this.starPreviousLocation = [this.locationX, this.locationY];
@@ -152,8 +199,20 @@ class Field {
     field[hatLocation.y][hatLocation.x] = hat;
     return [field, holeCount];
   }
+
+  rebuild(){
+    let [_field, _holeCount] = this._generateField(this._height, this._width, this._maxHoleProbability);
+    this.field = _field
+    this.holeCount = _holeCount
+  }
 }
 
+
+function clearScreen(){
+  process.stdout.write("\u001b[2J\u001b[0;0H");
+}
+
+clearScreen();
 
 const game = new Game(new Field(5, 33, 0.2), db)
 let stepCounter = 0;
@@ -163,47 +222,52 @@ let profileSetUpTimer = setInterval(function () {
 
   if (game.profile.id != null) {
     clearInterval(profileSetUpTimer)
+    clearScreen()
 
-    process.stdout.write("\u001b[2J\u001b[0;0H");
-    game.printField()
+    function displayLeaderBoardScreen(){
+      console.log(`\t\tLeadearboad`)
+          db.getLeaderBoard()
+          .then(([res, _]) => {
+            res.forEach(profile => {
+              console.log(`\t${profile.score}\t${profile.name}`)
+            })
+          })
+          .catch(e => {console.log(e)})
+    }
+    // Display second menu
+    const secondMenuItems = [
+      ["Play game", game.play],
+      ["Check Leaderboard", displayLeaderBoardScreen]
+    ]
+
+    let menuSelectIndex = 0;
+
+    function printMenu(){
+      console.log("\tWhat do you want to do?")
+      secondMenuItems.forEach((item, index) =>{
+        if(index == menuSelectIndex) console.log(`\x1b[42m\t${item[0]}\x1b[0m`);
+        else console.log(`\t${item[0]}`)
+      })
+    }
+
+    printMenu()
 
     process.stdin.on('keypress', function (ch, key) {
-      let shouldEndGame = false;
       if (key && key.ctrl && key.name == 'c') {
         process.stdin.pause();
         game.uploadScore(stepCounter, false)
       } else {
-        stepCounter++;
-        process.stdout.write("\u001b[2J\u001b[0;0H");
-        if (key.name == 'up') game.field.locationY -= 1;
-        if (key.name == 'down') game.field.locationY += 1;
-        if (key.name == 'left') game.field.locationX -= 1;
-        if (key.name == 'right') game.field.locationX += 1;;
-        if (!game.field.isInBounds()) {
-          console.log('Sorry, you went out of bonds!');
-          process.stdin.pause();
-          game.uploadScore(stepCounter, false)
-          shouldEndGame = true;
-        } else if (game.field.isHole()) {
-          console.log('Sorry, you fell down a hole!');
-          process.stdin.pause();
-          game.uploadScore(stepCounter, false)
-          shouldEndGame = true;
-        } else if (game.field.isHat()) {
-          console.log('Congrats, you found your hat!');
-          process.stdin.pause();
-          game.uploadScore(stepCounter, true)
-          shouldEndGame = true;
-        }
 
-        if (!shouldEndGame) {
-          // Update the current location on the map
-          game.field.field[game.field.locationY][game.field.locationX] = pathCharacter;
+        clearScreen()
+        if (key.name == "up" && menuSelectIndex > 0) menuSelectIndex--
+        if (key.name == "down" && menuSelectIndex < secondMenuItems.length - 1) menuSelectIndex++
+        if (key.name == "return") {
+          secondMenuItems[menuSelectIndex][1]()
+          return
         }
-        game.printField()
+        printMenu()
       }
-    });
-
+    })
   }
 
 
